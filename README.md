@@ -12,4 +12,4 @@ Apply the weathermod.diff from within the original sfetch programs folder (diff 
 
 # Example:
 
-![sfetchweatherpatch](weatherpatch.png)
+![sfetchweatherpatch](weather.png)
