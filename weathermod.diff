@@ -30,7 +30,7 @@ diff -ur sfetch/installation/uninstall.sh weatherpatch/installation/uninstall.sh
 Nur in sfetch/: LICENSE.
 diff -ur sfetch/program/config.h weatherpatch/program/config.h
 --- sfetch/program/config.h	2026-01-08 09:39:48.787699681 +0100
-+++ weatherpatch/program/config.h	2026-01-07 15:33:32.290267220 +0100
++++ weatherpatch/program/config.h	2026-01-08 15:43:58.474694628 +0100
 @@ -19,6 +19,7 @@
  
  };
@@ -70,20 +70,15 @@ diff -ur sfetch/program/config.h weatherpatch/program/config.h
 + * Keep in mind that this is a blocking operation. 
 + * Comment out to turn on. */ 
 +
-+//#define tm 3600; 
-Nur in sfetch/program: sfetch.
++//#define tm 10; 
+Nur in weatherpatch/program: sfetch.
 diff -ur sfetch/program/sfetch.c weatherpatch/program/sfetch.c
 --- sfetch/program/sfetch.c	2026-01-08 12:33:10.964778745 +0100
-+++ weatherpatch/program/sfetch.c	2026-01-08 12:29:08.243631481 +0100
-@@ -30,10 +30,18 @@
++++ weatherpatch/program/sfetch.c	2026-01-08 15:45:11.384849854 +0100
+@@ -30,10 +30,13 @@
  #include <string.h>
  #include <unistd.h>
  #include <pwd.h>
-+#include <ifaddrs.h>
-+#include <arpa/inet.h>
-+#include <sys/socket.h>
-+#include <linux/if_link.h>
-+#include <netdb.h>
 +#include <time.h>
 +#include <curl/curl.h>
  
@@ -94,7 +89,7 @@ diff -ur sfetch/program/sfetch.c weatherpatch/program/sfetch.c
  /*Fetch system information and display it on the terminal screen*/
  int
  main(int argc, char** argv)
-@@ -48,6 +56,10 @@
+@@ -48,6 +51,10 @@
          case 'i':
            print_info();
            break;
@@ -105,7 +100,7 @@ diff -ur sfetch/program/sfetch.c weatherpatch/program/sfetch.c
          case 'v':
            printf("\nsfetch version %s", VERSION);
            break;
-@@ -57,6 +69,8 @@
+@@ -57,6 +64,8 @@
  
    }
  
@@ -114,7 +109,7 @@ diff -ur sfetch/program/sfetch.c weatherpatch/program/sfetch.c
    return 0;
  
  }
-@@ -69,17 +83,18 @@
+@@ -69,17 +78,18 @@
      if(sysinfo(&sys) < 0)
      {
        fprintf(stderr, "Problem with fetching sys info.");
@@ -137,7 +132,7 @@ diff -ur sfetch/program/sfetch.c weatherpatch/program/sfetch.c
      }
  
      if(mdls.active == 0)
-@@ -244,7 +259,7 @@
+@@ -244,7 +254,7 @@
          {
                if(colors.toggle) 
                  switch_colors("CPU:");
@@ -146,7 +141,7 @@ diff -ur sfetch/program/sfetch.c weatherpatch/program/sfetch.c
                  fprintf(fd, "\tCPU:");
                if(fprintf(fd, "%s", strip_newline(model_name+1)) < 0)
                  fprintf(stderr, "Couldn't display CPU");
-@@ -273,7 +288,7 @@
+@@ -273,7 +283,7 @@
  
    if(state.kernel)
    {
@@ -155,7 +150,7 @@ diff -ur sfetch/program/sfetch.c weatherpatch/program/sfetch.c
      if(kern_size <= KERNSIZE)
      {
   
-@@ -288,7 +303,7 @@
+@@ -288,7 +298,7 @@
        if(!kern)
        {
          fprintf(stderr, "Couldn't allocate memory");
@@ -164,7 +159,7 @@ diff -ur sfetch/program/sfetch.c weatherpatch/program/sfetch.c
        }
  
        static const char *sub = "Linux";
-@@ -324,7 +339,7 @@
+@@ -324,7 +334,7 @@
  
  }
  
@@ -173,7 +168,7 @@ diff -ur sfetch/program/sfetch.c weatherpatch/program/sfetch.c
  int
  print_user(FILE *fd)
  {
-@@ -435,6 +450,85 @@
+@@ -435,6 +445,85 @@
  
  }
  
@@ -259,7 +254,7 @@ diff -ur sfetch/program/sfetch.c weatherpatch/program/sfetch.c
  /*Helper function: strip newline */
  char*
  strip_newline(char *str)
-@@ -538,3 +632,266 @@
+@@ -538,3 +627,267 @@
      return str;
  
  }
@@ -269,7 +264,7 @@ diff -ur sfetch/program/sfetch.c weatherpatch/program/sfetch.c
 +update(const char* filename)
 +{
 +
-+  FILE* fd = fopen(filename, "w");
++  FILE* fd = fopen(filename, "w+");
 +  check_error(fd);
 +  fprintf(fd, "\0");
 +  fclose(fd);
@@ -455,10 +450,12 @@ diff -ur sfetch/program/sfetch.c weatherpatch/program/sfetch.c
 +timepassed()
 +{
 +
++  #ifdef tm
 +    time_t last_run;
 +    FILE *t_data = fopen(t_log, "r");
 + 
 +    check_error(t_data);
++
 +
 +    if(fscanf(t_data, "%ld", &last_run) != 1)
 +    {
@@ -471,12 +468,11 @@ diff -ur sfetch/program/sfetch.c weatherpatch/program/sfetch.c
 +    double difference = difftime(now, last_run);
 +
 +    fclose(t_data);
-+ 
-+    #ifdef tm 
-+      return difference >= tm;
-+    #endif
 +
-+    return 0;
++    return difference >= tm;
++  #endif
++
++  return 0;
 +
 +}
 +
@@ -610,3 +606,4 @@ Nur in sfetch/: README.md.
 Nur in sfetch/: sfetch.png.
 Nur in sfetch/: sfetch_termux.jpg.
 Nur in sfetch/: TODO.md.
+Nur in sfetch/: weatherpatch.png.
