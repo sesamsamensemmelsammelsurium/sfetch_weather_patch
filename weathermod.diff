@@ -1,0 +1,612 @@
+Nur in sfetch/: .git.
+diff -ur sfetch/installation/install.sh weatherpatch/installation/install.sh
+--- sfetch/installation/install.sh	2025-12-18 21:13:05.844066955 +0100
++++ weatherpatch/installation/install.sh	2026-01-08 12:36:36.916299417 +0100
+@@ -1,3 +1,3 @@
+ #!/bin/sh
+ 
+-cc -o sfetch ../program/sfetch.c && mv sfetch /usr/local/bin && cp -r ../ascii /usr/local/share
++cc -o sfetch ../program/sfetch.c -lcurl && mv sfetch /usr/local/bin/ && cp -r ../ascii /usr/local/share/
+diff -ur sfetch/installation/make.sh weatherpatch/installation/make.sh
+--- sfetch/installation/make.sh	2025-12-18 21:13:05.843066942 +0100
++++ weatherpatch/installation/make.sh	2026-01-07 07:21:44.670973178 +0100
+@@ -1 +1 @@
+-cc -o ../program/sfetch ../program/sfetch.c
++cc -o ../program/sfetch ../program/sfetch.c -lcurl
+diff -ur sfetch/installation/run.sh weatherpatch/installation/run.sh
+--- sfetch/installation/run.sh	2025-12-18 21:13:05.844066955 +0100
++++ weatherpatch/installation/run.sh	2026-01-07 07:25:00.876011054 +0100
+@@ -1,3 +1,3 @@
+ #!/bin/sh
+ 
+-tcc -run ../program/sfetch.c -i
++tcc -run -lcurl ../program/sfetch.c -i
+diff -ur sfetch/installation/uninstall.sh weatherpatch/installation/uninstall.sh
+--- sfetch/installation/uninstall.sh	2025-12-18 21:13:05.844066955 +0100
++++ weatherpatch/installation/uninstall.sh	2026-01-08 12:37:22.539079478 +0100
+@@ -1 +1 @@
+-rm /usr/local/bin/sfetch && rm -rf /usr/local/share/ascii
++rm /usr/local/bin/sfetch && rm -rf /usr/local/share/ascii && rm /tmp/wttrdata.txt && rm /tmp/t_log.txt
+Nur in sfetch/: LICENSE.
+diff -ur sfetch/program/config.h weatherpatch/program/config.h
+--- sfetch/program/config.h	2026-01-08 09:39:48.787699681 +0100
++++ weatherpatch/program/config.h	2026-01-07 15:33:32.290267220 +0100
+@@ -19,6 +19,7 @@
+ 
+ };
+ 
++
+ /* Specify size of the ASCII art. */
+  
+ #define MAX_LINES 10
+@@ -42,7 +43,8 @@
+             .cpu = 1,
+             .kernel = 1,
+             .procs = 1,
+-            .host = 1
++            .host = 1,
++            .weather = 1
+ 
+ };
+ 
+@@ -61,6 +63,7 @@
+ modules[4] = print_memory; //Print memory stats
+ modules[6] = print_procs; //Print active processes
+ modules[1] = print_user; //Print user and host
++modules[7] = get_wttr; //Print weather
+ 
+ }
+ 
+@@ -81,3 +84,13 @@
+         .on = 0
+ 
+ };
++
++/* Location string for weather information */
++
++char* city = "Gotham";
++
++/* Set automatic update intervall of gathering weather information in secs.
++ * Keep in mind that this is a blocking operation. 
++ * Comment out to turn on. */ 
++
++//#define tm 3600; 
+Nur in sfetch/program: sfetch.
+diff -ur sfetch/program/sfetch.c weatherpatch/program/sfetch.c
+--- sfetch/program/sfetch.c	2026-01-08 12:33:10.964778745 +0100
++++ weatherpatch/program/sfetch.c	2026-01-08 12:29:08.243631481 +0100
+@@ -30,10 +30,18 @@
+ #include <string.h>
+ #include <unistd.h>
+ #include <pwd.h>
++#include <ifaddrs.h>
++#include <arpa/inet.h>
++#include <sys/socket.h>
++#include <linux/if_link.h>
++#include <netdb.h>
++#include <time.h>
++#include <curl/curl.h>
+ 
+ #include "sfetch.h"
+ #include "config.h"
+ 
++
+ /*Fetch system information and display it on the terminal screen*/
+ int
+ main(int argc, char** argv)
+@@ -48,6 +56,10 @@
+         case 'i':
+           print_info();
+           break;
++        case 'u':
++          update(wttrdata);
++          print_info();
++          break;
+         case 'v':
+           printf("\nsfetch version %s", VERSION);
+           break;
+@@ -57,6 +69,8 @@
+ 
+   }
+ 
++  free_mem(url_t, url_t->scheme, url_t->host, url_t->city, url_t->format, NULL);
++
+   return 0;
+ 
+ }
+@@ -69,17 +83,18 @@
+     if(sysinfo(&sys) < 0)
+     {
+       fprintf(stderr, "Problem with fetching sys info.");
++      free_mem(url_t, NULL);
+       exit(EXIT_FAILURE);
+     }
+- 
+-    static const size_t max_mods = 7;
++
++    static const size_t max_mods = 8;
+ 
+     modules_();
+  
+-    for(size_t i = 0; i < max_mods; i++) 
++    for(size_t i = 0; i < max_mods; i++)
+     {
+       if (modules[i] != NULL)
+-          modules[i](stdout);
++        modules[i](stdout);
+     }
+ 
+     if(mdls.active == 0)
+@@ -244,7 +259,7 @@
+         {
+               if(colors.toggle) 
+                 switch_colors("CPU:");
+-              else 
++              else
+                 fprintf(fd, "\tCPU:");
+               if(fprintf(fd, "%s", strip_newline(model_name+1)) < 0)
+                 fprintf(stderr, "Couldn't display CPU");
+@@ -273,7 +288,7 @@
+ 
+   if(state.kernel)
+   {
+-    
++
+     if(kern_size <= KERNSIZE)
+     {
+  
+@@ -288,7 +303,7 @@
+       if(!kern)
+       {
+         fprintf(stderr, "Couldn't allocate memory");
+-        exit(EXIT_FAILURE);
++        exit(EXIT_FAILURE); 
+       }
+ 
+       static const char *sub = "Linux";
+@@ -324,7 +339,7 @@
+ 
+ }
+ 
+-/* Print user and host */
++/* Print user and host if module is activated */
+ int
+ print_user(FILE *fd)
+ {
+@@ -435,6 +450,85 @@
+ 
+ }
+ 
++/*Fetch weather information from wttr.in if module is activated. FILE parameter again serves no purpose here.*/
++int
++get_wttr(FILE* fd)
++{
++
++  url_t = parse_wttrin("https://www.wttr.in/?format=3");
++
++  if (!url_t) {
++        fprintf(stderr, "Failed to parse the URL.\n");
++        free(url_t);
++        exit(EXIT_FAILURE);
++    }
++
++  char* url = form_url();
++
++  if(state.weather)
++  {
++
++    mdls.active += 1;
++
++    FILE *w_data;
++    FILE *t_data;
++
++    CURL *curl;
++    CURLcode res;
++
++    if(!file_ok(wttrdata))
++    {
++      w_data = fopen(wttrdata, "w+");
++      check_error(w_data);
++    }
++
++    if(!file_ok(t_log))
++    {
++      t_data = fopen(t_log, "w+");
++      check_error(w_data);
++    }
++
++    if(timepassed() || (file_size(wttrdata) == 0))
++    {
++
++      curl = curl_easy_init();
++
++      if (curl) {
++
++        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
++        curl_easy_setopt(curl, CURLOPT_URL, url);
++        curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
++
++        res = curl_easy_perform(curl);
++        if (res != CURLE_OK) {
++          fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
++        }
++
++        curl_easy_cleanup(curl);
++
++        last_exec();
++
++        separator(nlines);
++ 
++      }
++
++
++      } else {
++
++      to_screen();
++
++    }
++
++    free_mem(url, NULL);
++
++  }
++ 
++  return 0;
++
++}
++
++/* HELPER FUNCTIONS */
++
+ /*Helper function: strip newline */
+ char*
+ strip_newline(char *str)
+@@ -538,3 +632,266 @@
+     return str;
+ 
+ }
++
++/*Helper function: emptying the cache for wttr.in */
++void 
++update(const char* filename)
++{
++
++  FILE* fd = fopen(filename, "w");
++  check_error(fd);
++  fprintf(fd, "\0");
++  fclose(fd);
++
++}
++
++/*Helper function: get file size */
++int
++file_size(const char *filename)
++{
++
++    FILE *file = fopen(filename, "r");
++    check_error(file);
++
++    fseek(file, 0, SEEK_END);
++
++    long size = ftell(file);
++
++    fclose(file);
++
++    return size;
++
++}
++
++/*Helper function: check files existence*/
++int
++file_ok(const char* filename)
++{
++
++  return (access(filename, F_OK) == 0);
++
++}
++
++/*Helper function: put data to screen */ 
++void
++to_screen()
++{
++
++  char buffer[256];
++  FILE *file = fopen(wttrdata, "r");
++  check_error(file);
++
++  if(colors.toggle)
++    switch_colors("Current weather in ");
++  else {
++    fprintf(stdout, "\t%s", "Current weather in ");
++  }
++  while (fgets(buffer, sizeof(buffer), file)) {
++      fprintf(stdout, "%s", buffer);
++  }
++ 
++  separator(nlines);
++
++  fclose(file);
++
++}
++
++/*Helper function: form custom url */
++char*
++form_url()
++{
++
++   if (url_t->city != NULL) {
++        free(url_t->city);
++    }
++ 
++  url_t->city = malloc(strlen(city)+1);
++  strcpy(url_t->city, city);
++ 
++  char *res = malloc(512);
++  res[0] = '\0';
++ 
++  char *parts[] = {url_t->scheme, "://", url_t->host, "/", url_t->city, "?", url_t->format}; 
++  size_t num_parts = sizeof(parts) / sizeof(parts[0]); 
++
++  for(size_t i = 0; i < num_parts; i++) {
++
++    strcat(res, parts[i]);
++
++  }
++
++  return res;
++
++}
++
++/*Helper function: parse base url */
++URL
++*parse_wttrin(const char *url_string)
++{
++
++  URL *url = malloc(sizeof(URL));
++ 
++  if (url == NULL) {
++    free_mem(url, NULL);
++    return NULL;
++  }
++ 
++  char* scheme_end = strstr(url_string, "://");
++
++  if(scheme_end != NULL)
++  {
++ 
++    url->scheme = strndup(url_string, scheme_end - url_string);
++    if (url->scheme == NULL)
++    {
++      free_mem(url, NULL);
++      return NULL;
++    }
++
++    url_string = scheme_end + 3;
++
++  }
++
++  char* domain_end = strchr(url_string, '/');
++ 
++  if(domain_end != NULL)
++  {
++
++    url->host = strndup(url_string, domain_end - url_string);
++    if(url->host == NULL)
++    {
++      free_mem(url, NULL);
++      return NULL;
++    }
++
++    url_string = domain_end + 1;
++
++  }
++ 
++  char* city_end = strchr(url_string, '?');
++
++  if(city_end != NULL)
++  {
++
++    url->city = strndup(url_string, city_end - url_string);
++
++    if(url->city == NULL)
++    {
++      free_mem(url, NULL);
++      return NULL;
++    }
++
++    url_string = city_end + 1;
++ 
++  }
++ 
++  char* format_end = strchr(url_string, '\0');
++
++  if(format_end != NULL)
++  {
++
++    url->format = strndup(url_string, format_end - url_string);
++
++    if(url->format == NULL)
++    {
++      free_mem(url, NULL);
++      return NULL;
++    }
++
++  }
++ 
++  return url;
++
++}
++
++/*Helper function: check last exec time*/
++void
++last_exec()
++{
++
++  FILE *t_data = fopen(t_log, "w+");
++  check_error(t_data);
++
++  time_t last_run = time(NULL);
++ 
++  fprintf(t_data, "%ld", last_run);
++  fclose(t_data);
++
++}
++
++/*Helper function: check how much time has passed since last exec*/
++int
++timepassed()
++{
++
++    time_t last_run;
++    FILE *t_data = fopen(t_log, "r");
++ 
++    check_error(t_data);
++
++    if(fscanf(t_data, "%ld", &last_run) != 1)
++    {
++      fclose(t_data);
++      fprintf(stderr, "Failed to read time.");
++      return -1;
++    }
++
++    time_t now = time(NULL);
++    double difference = difftime(now, last_run);
++
++    fclose(t_data);
++ 
++    #ifdef tm 
++      return difference >= tm;
++    #endif
++
++    return 0;
++
++}
++
++/*Helper function: write_callback for libcurl */
++size_t
++write_callback(char *content, size_t size, size_t nelm, void *userdata) 
++{
++
++
++  FILE* wttr = fopen(wttrdata, "w+");
++  check_error(wttr);
++
++  fprintf(wttr, "%.*s", (int)(size * nelm), content);
++ 
++  if(colors.toggle)
++    switch_colors("Current weather in ");
++  else {
++    fprintf(stdout, "\tCurrent weather in ");
++  }
++
++  fprintf(stdout, "%.*s", (int)(size * nelm), content);
++ 
++  fclose(wttr);
++
++  return size * nelm;
++
++}
++
++/* Helper function: free struct */
++void
++free_mem(void *t, ...)
++{
++
++    va_list args;
++
++    free(t);
++
++    va_start(args, t);
++
++    void *ptr;
++
++    while((ptr = va_arg(args, void*)) != NULL) 
++    {
++        free(ptr);
++    }
++
++    va_end(args);
++
++}
+diff -ur sfetch/program/sfetch.h weatherpatch/program/sfetch.h
+--- sfetch/program/sfetch.h	2026-01-08 12:29:56.660458528 +0100
++++ weatherpatch/program/sfetch.h	2026-01-08 12:29:53.225399846 +0100
+@@ -1,4 +1,4 @@
+-#define VERSION "0.1"
++#define VERSION "0.1.1"
+ 
+ #define KERNSIZE 128
+ #define CPUSIZE 128
+@@ -24,11 +24,26 @@
+ #define FREE_SWAP (sys.freeswap * sys.mem_unit) / MB
+ #define PROCESSES sys.procs
+ 
++#define wttrdata "/tmp/wttrdata.txt"
++#define t_log "/tmp/t_log.txt"
++
+ struct sysinfo sys;
+ 
++typedef struct url
++{
++
++  char* scheme;
++  char* host;
++  char* city;
++  char* format;
++
++} URL;
++
++URL *url_t;
++
+ char *default_path[3] = {"../ascii/linux.txt", "../ascii/openbsd.txt", "../ascii/sfetch.txt"};
+ char *install_path[3] = {"/usr/local/share/ascii/linux.txt", "/usr/local/share/ascii/openbsd.txt", "/usr/local/share/ascii/sfetch.txt"};
+-int (*modules[7])(FILE*);
++int (*modules[8])(FILE*);
+ 
+ char *switch_colors(char *str);
+ void module_order();
+@@ -38,7 +53,7 @@
+ int print_procs(FILE*);
+ int print_cpu(FILE*);
+ int print_user(FILE*);
+-int print_address(FILE *);
++int print_address(FILE*);
+ void print_info();
+ int render_art(FILE*);
+ void check_error(FILE*);
+@@ -48,6 +63,17 @@
+ void separator(int);
+ char* strip_newline(char*);
+ char* switch_colors(char*);
++int get_wttr(FILE*);
++void last_exec();
++int timepassed();
++size_t write_callback(char*, size_t, size_t, void*);
++URL *parse_wttrin(const char*);
++char *form_url();
++void to_screen();
++int file_size(const char*);
++int file_ok(const char*);
++void update(const char*);
++void free_mem(void*, ...);
+ 
+ typedef enum {
+                   LINUX,
+@@ -79,6 +105,7 @@
+     unsigned int kernel     : 1;
+     unsigned int procs      : 1;
+     unsigned int host       : 1;
++    unsigned int weather    : 1;
+  
+   } Modules;
+ 
+@@ -113,6 +140,7 @@
+     unsigned int kernel     : 1;
+     unsigned int procs      : 1;
+     unsigned int host       : 1;
++    unsigned int weather    : 1;
+ 
+   } __attribute__((packed)) Modules;
+ 
+Nur in sfetch/: README.md.
+Nur in sfetch/: sfetch.png.
+Nur in sfetch/: sfetch_termux.jpg.
+Nur in sfetch/: TODO.md.
