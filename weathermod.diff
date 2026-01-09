@@ -30,7 +30,7 @@ diff -ur sfetch/installation/uninstall.sh weatherpatch/installation/uninstall.sh
 Nur in sfetch/: LICENSE.
 diff -ur sfetch/program/config.h weatherpatch/program/config.h
 --- sfetch/program/config.h	2026-01-08 09:39:48.787699681 +0100
-+++ weatherpatch/program/config.h	2026-01-08 15:43:58.474694628 +0100
++++ weatherpatch/program/config.h	2026-01-08 17:38:52.889692183 +0100
 @@ -19,6 +19,7 @@
  
  };
@@ -64,17 +64,16 @@ diff -ur sfetch/program/config.h weatherpatch/program/config.h
 +
 +/* Location string for weather information */
 +
-+char* city = "Gotham";
++char* city = "Essen-Altendorf";
 +
 +/* Set automatic update intervall of gathering weather information in secs.
 + * Keep in mind that this is a blocking operation. 
 + * Comment out to turn on. */ 
 +
 +//#define tm 10; 
-Nur in weatherpatch/program: sfetch.
 diff -ur sfetch/program/sfetch.c weatherpatch/program/sfetch.c
 --- sfetch/program/sfetch.c	2026-01-08 12:33:10.964778745 +0100
-+++ weatherpatch/program/sfetch.c	2026-01-08 15:45:11.384849854 +0100
++++ weatherpatch/program/sfetch.c	2026-01-09 13:31:35.902219348 +0100
 @@ -30,10 +30,13 @@
  #include <string.h>
  #include <unistd.h>
@@ -89,27 +88,28 @@ diff -ur sfetch/program/sfetch.c weatherpatch/program/sfetch.c
  /*Fetch system information and display it on the terminal screen*/
  int
  main(int argc, char** argv)
-@@ -48,6 +51,10 @@
+@@ -47,12 +50,20 @@
+         {
          case 'i':
            print_info();
-           break;
++          free_mem(url_t, url_t->scheme, url_t->host, url_t->city, url_t->format, NULL);
++          break;
 +        case 'u':
 +          update(wttrdata);
 +          print_info();
-+          break;
++          free_mem(url_t, url_t->scheme, url_t->host, url_t->city, url_t->format, NULL);
+           break;
          case 'v':
            printf("\nsfetch version %s", VERSION);
            break;
-@@ -57,6 +64,8 @@
+         default:
+           fprintf(stderr, "Unknown option: %s\n", argv[i]);
++          return 1;
++
+         }
  
    }
- 
-+  free_mem(url_t, url_t->scheme, url_t->host, url_t->city, url_t->format, NULL);
-+
-   return 0;
- 
- }
-@@ -69,17 +78,18 @@
+@@ -69,17 +80,18 @@
      if(sysinfo(&sys) < 0)
      {
        fprintf(stderr, "Problem with fetching sys info.");
@@ -132,7 +132,7 @@ diff -ur sfetch/program/sfetch.c weatherpatch/program/sfetch.c
      }
  
      if(mdls.active == 0)
-@@ -244,7 +254,7 @@
+@@ -244,7 +256,7 @@
          {
                if(colors.toggle) 
                  switch_colors("CPU:");
@@ -141,7 +141,7 @@ diff -ur sfetch/program/sfetch.c weatherpatch/program/sfetch.c
                  fprintf(fd, "\tCPU:");
                if(fprintf(fd, "%s", strip_newline(model_name+1)) < 0)
                  fprintf(stderr, "Couldn't display CPU");
-@@ -273,7 +283,7 @@
+@@ -273,7 +285,7 @@
  
    if(state.kernel)
    {
@@ -150,7 +150,7 @@ diff -ur sfetch/program/sfetch.c weatherpatch/program/sfetch.c
      if(kern_size <= KERNSIZE)
      {
   
-@@ -288,7 +298,7 @@
+@@ -288,7 +300,7 @@
        if(!kern)
        {
          fprintf(stderr, "Couldn't allocate memory");
@@ -159,7 +159,7 @@ diff -ur sfetch/program/sfetch.c weatherpatch/program/sfetch.c
        }
  
        static const char *sub = "Linux";
-@@ -324,7 +334,7 @@
+@@ -324,7 +336,7 @@
  
  }
  
@@ -168,7 +168,7 @@ diff -ur sfetch/program/sfetch.c weatherpatch/program/sfetch.c
  int
  print_user(FILE *fd)
  {
-@@ -435,6 +445,85 @@
+@@ -435,6 +447,70 @@
  
  }
  
@@ -192,23 +192,8 @@ diff -ur sfetch/program/sfetch.c weatherpatch/program/sfetch.c
 +
 +    mdls.active += 1;
 +
-+    FILE *w_data;
-+    FILE *t_data;
-+
 +    CURL *curl;
 +    CURLcode res;
-+
-+    if(!file_ok(wttrdata))
-+    {
-+      w_data = fopen(wttrdata, "w+");
-+      check_error(w_data);
-+    }
-+
-+    if(!file_ok(t_log))
-+    {
-+      t_data = fopen(t_log, "w+");
-+      check_error(w_data);
-+    }
 +
 +    if(timepassed() || (file_size(wttrdata) == 0))
 +    {
@@ -254,7 +239,7 @@ diff -ur sfetch/program/sfetch.c weatherpatch/program/sfetch.c
  /*Helper function: strip newline */
  char*
  strip_newline(char *str)
-@@ -538,3 +627,267 @@
+@@ -538,3 +614,260 @@
      return str;
  
  }
@@ -286,15 +271,6 @@ diff -ur sfetch/program/sfetch.c weatherpatch/program/sfetch.c
 +    fclose(file);
 +
 +    return size;
-+
-+}
-+
-+/*Helper function: check files existence*/
-+int
-+file_ok(const char* filename)
-+{
-+
-+  return (access(filename, F_OK) == 0);
 +
 +}
 +
@@ -435,13 +411,15 @@ diff -ur sfetch/program/sfetch.c weatherpatch/program/sfetch.c
 +last_exec()
 +{
 +
-+  FILE *t_data = fopen(t_log, "w+");
-+  check_error(t_data);
++  #ifdef tm
++    FILE *t_data = fopen(t_log, "w+");
++    check_error(t_data);
 +
-+  time_t last_run = time(NULL);
++    time_t last_run = time(NULL);
 + 
-+  fprintf(t_data, "%ld", last_run);
-+  fclose(t_data);
++    fprintf(t_data, "%ld", last_run);
++    fclose(t_data);
++  #endif
 +
 +}
 +
@@ -524,7 +502,7 @@ diff -ur sfetch/program/sfetch.c weatherpatch/program/sfetch.c
 +}
 diff -ur sfetch/program/sfetch.h weatherpatch/program/sfetch.h
 --- sfetch/program/sfetch.h	2026-01-08 12:29:56.660458528 +0100
-+++ weatherpatch/program/sfetch.h	2026-01-08 12:29:53.225399846 +0100
++++ weatherpatch/program/sfetch.h	2026-01-08 16:44:27.310001008 +0100
 @@ -1,4 +1,4 @@
 -#define VERSION "0.1"
 +#define VERSION "0.1.1"
