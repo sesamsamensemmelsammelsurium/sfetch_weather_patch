@@ -9,7 +9,7 @@ Apply the weathermod.diff from within the original sfetch programs folder (diff 
 The cache gets stored inside the /tmp folder, so you eventually **have** to update the cache after 
 a restart of your system.
 
-Remember: you can always tinker with the source code to change the programs behavior as we apply the suckless philosophy here: the source code is the configuration file. So if you're not lucky with some decisions or behavior, change it. There will be of course no support for applied changes. 
+Remember: you can always tinker with the source code to change the programs behavior as we apply the suckless philosophy here: the source code is the configuration file. So if you're not lucky with some decisions or behavior, change it. There will be of course no support for applied personal changes. 
 
 # Dependencies
 
