@@ -90,7 +90,7 @@ diff -ur sfetch/program/config.h weatherpatch/program/config.h
 Nur in sfetch/program: sfetch.
 diff -ur sfetch/program/sfetch.c weatherpatch/program/sfetch.c
 --- sfetch/program/sfetch.c	2026-01-09 20:15:14.868512353 +0100
-+++ weatherpatch/program/sfetch.c	2026-01-19 05:45:42.348065864 +0100
++++ weatherpatch/program/sfetch.c	2026-01-19 13:07:08.412454798 +0100
 @@ -30,10 +30,13 @@
  #include <string.h>
  #include <unistd.h>
@@ -273,7 +273,7 @@ diff -ur sfetch/program/sfetch.c weatherpatch/program/sfetch.c
            printf("\t%s", img);
  
    }
-@@ -435,6 +446,69 @@
+@@ -435,6 +446,70 @@
  
  }
  
@@ -315,6 +315,7 @@ diff -ur sfetch/program/sfetch.c weatherpatch/program/sfetch.c
 +
 +        if (res != CURLE_OK) {
 +          fprintf(stderr, "\tcurl_easy_perform() failed: %s\n", curl_easy_strerror(res));
++          separator(nlines-1);
 +        }
 +
 +        curl_easy_cleanup(curl);
@@ -343,7 +344,7 @@ diff -ur sfetch/program/sfetch.c weatherpatch/program/sfetch.c
  /*Helper function: strip newline */
  char*
  strip_newline(char *str)
-@@ -442,7 +516,7 @@
+@@ -442,7 +517,7 @@
  
      size_t len = strlen(str);
  
@@ -352,7 +353,7 @@ diff -ur sfetch/program/sfetch.c weatherpatch/program/sfetch.c
          str[len - 1] = '\0';
  
      return str;
-@@ -483,7 +557,7 @@
+@@ -483,7 +558,7 @@
  separator(int nlines)
  {
  
@@ -361,7 +362,7 @@ diff -ur sfetch/program/sfetch.c weatherpatch/program/sfetch.c
        printf("\n");
  
  }
-@@ -493,7 +567,7 @@
+@@ -493,7 +568,7 @@
  check_error(FILE* fd)
  {
  
@@ -370,7 +371,7 @@ diff -ur sfetch/program/sfetch.c weatherpatch/program/sfetch.c
  
  }
  
-@@ -507,7 +581,7 @@
+@@ -507,7 +582,7 @@
  }
  
  /*Helper function: Handle colors */
@@ -379,7 +380,7 @@ diff -ur sfetch/program/sfetch.c weatherpatch/program/sfetch.c
  switch_colors(char* str)
  {
  
-@@ -538,3 +612,260 @@
+@@ -538,3 +613,260 @@
      return str;
  
  }
